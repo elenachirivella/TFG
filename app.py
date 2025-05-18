@@ -15,7 +15,7 @@ model_humidity = joblib.load("rf_humidity_futuro_30.pkl")
 model_uv = joblib.load("rf_uvindex_futuro_30.pkl")
 
 # Cargar dataset
-df_model = pd.read_csv("df_model.csv")
+df_model = pd.read_csv("df_model_final.csv")
 df_model["datetime"] = pd.to_datetime(df_model["datetime"], errors='coerce')
 df_model = df_model.dropna(subset=["datetime"])
 

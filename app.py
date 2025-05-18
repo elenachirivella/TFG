@@ -5,11 +5,12 @@ from datetime import date, timedelta, datetime
 import numpy as np
 import plotly.express as px
 
-# ⚠️ Trampa temporal para que funcione con fechas pasadas
-hoy = datetime(2025, 1, 1).date()  # Puedes cambiar esta fecha según tus datos
+# ⚠️ Trampa temporal para simular que hoy es una fecha del dataset
+hoy = datetime(2025, 1, 1).date()
 
-# Cargar scaler
+# Cargar scaler y columnas usadas en el entrenamiento
 scaler = joblib.load("scaler.pkl")
+feature_names = joblib.load("feature_names.pkl")
 
 # Cargar modelos
 model_temp = joblib.load("rf_temp_futuro_30.pkl")
@@ -27,7 +28,7 @@ st.set_page_config(page_title="Predicción Meteorológica Valencia", layout="cen
 st.markdown("## 🌤️ Predicción Meteorológica - Valencia")
 st.markdown("Esta aplicación predice el clima de Valencia para cualquier fecha futura disponible.")
 
-# === Encontrar fechas válidas para predicción ===
+# === Buscar fechas válidas para predicción ===
 fechas_validas = []
 lags = [1, 2, 3, 7]
 fechas_disponibles = df_model["datetime"].dt.date.unique()
@@ -42,19 +43,17 @@ for fecha in fechas_disponibles:
     if not faltan_lags and fecha > hoy:
         fechas_validas.append(fecha)
 
-# Controlar si hay fechas válidas
 if not fechas_validas:
     st.error("No hay fechas válidas con suficientes datos para predecir.")
     st.stop()
 
-# Selector de fecha segura
-date_options = sorted(fechas_validas)
+# Selector
 fecha_prediccion = st.selectbox(
     "🗓️ Selecciona una fecha futura con datos disponibles:",
-    date_options
+    sorted(fechas_validas)
 )
 
-# Preparar entrada del modelo
+# Preparar datos de entrada
 fecha_actual = pd.to_datetime(fecha_prediccion)
 inputs = {}
 
@@ -74,7 +73,8 @@ inputs["year"] = fecha_actual.year
 inputs["weekday"] = fecha_actual.weekday()
 inputs["is_weekend"] = int(inputs["weekday"] in [5, 6])
 
-X_pred = pd.DataFrame([inputs])
+# Crear DataFrame en el orden esperado
+X_pred = pd.DataFrame([[inputs.get(col, 0) for col in feature_names]], columns=feature_names)
 X_scaled = scaler.transform(X_pred)
 
 # Predicciones

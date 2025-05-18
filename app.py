@@ -1,9 +1,12 @@
 import streamlit as st
 import pandas as pd
 import joblib
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 import numpy as np
 import plotly.express as px
+
+# ⚠️ Trampa temporal para que funcione con fechas pasadas
+hoy = datetime(2025, 1, 1).date()  # Puedes cambiar esta fecha según tus datos
 
 # Cargar scaler
 scaler = joblib.load("scaler.pkl")
@@ -36,7 +39,7 @@ for fecha in fechas_disponibles:
         if (fecha_actual - timedelta(days=l)).date() not in fechas_disponibles:
             faltan_lags = True
             break
-    if not faltan_lags and fecha > date.today():
+    if not faltan_lags and fecha > hoy:
         fechas_validas.append(fecha)
 
 # Controlar si hay fechas válidas

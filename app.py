@@ -24,21 +24,35 @@ st.set_page_config(page_title="Predicción Meteorológica Valencia", layout="cen
 st.markdown("## 🌤️ Predicción Meteorológica - Valencia")
 st.markdown("Esta aplicación predice el clima de Valencia para cualquier fecha futura disponible.")
 
-# Selector de fecha
-min_fecha = (df_model["datetime"].min() + timedelta(days=7)).date()
-max_fecha = df_model["datetime"].max().date()
-default_fecha = min(max(min_fecha, date.today() + timedelta(days=1)), max_fecha)
+# === Encontrar fechas válidas para predicción ===
+fechas_validas = []
+lags = [1, 2, 3, 7]
+fechas_disponibles = df_model["datetime"].dt.date.unique()
 
-fecha_prediccion = st.date_input(
-    "📅 Selecciona una fecha futura:",
-    default_fecha,
-    min_value=min_fecha,
-    max_value=max_fecha
+for fecha in fechas_disponibles:
+    fecha_actual = pd.to_datetime(fecha)
+    faltan_lags = False
+    for l in lags:
+        if (fecha_actual - timedelta(days=l)).date() not in fechas_disponibles:
+            faltan_lags = True
+            break
+    if not faltan_lags and fecha > date.today():
+        fechas_validas.append(fecha)
+
+# Controlar si hay fechas válidas
+if not fechas_validas:
+    st.error("No hay fechas válidas con suficientes datos para predecir.")
+    st.stop()
+
+# Selector de fecha segura
+date_options = sorted(fechas_validas)
+fecha_prediccion = st.selectbox(
+    "🗓️ Selecciona una fecha futura con datos disponibles:",
+    date_options
 )
 
 # Preparar entrada del modelo
 fecha_actual = pd.to_datetime(fecha_prediccion)
-lags = [1, 2, 3, 7]
 inputs = {}
 
 for l in lags:
@@ -99,4 +113,3 @@ elif 3 <= uv < 6:
     st.warning(f"🟡 Riesgo moderado ({uv}). Usa protector solar y evita horas punta.")
 else:
     st.error(f"🔴 Riesgo alto ({uv}). Evita exposición prolongada entre 12 y 16h.")
-

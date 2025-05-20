@@ -127,18 +127,10 @@ with st.expander("📊 Dashboard avanzado"):
                       title="Radiación y energía solar", labels={"value": "Intensidad", "variable": "Variable"})
     st.plotly_chart(fig_sol, use_container_width=True)
 
-    st.subheader("🌙 Fase lunar y duración del día")
-    df_ventana["sunrise"] = pd.to_datetime(df_ventana["sunrise"], errors='coerce')
-    df_ventana["sunset"] = pd.to_datetime(df_ventana["sunset"], errors='coerce')
-    df_ventana["sunlight_hours"] = (df_ventana["sunset"] - df_ventana["sunrise"]).dt.total_seconds() / 3600
-    fig_luna = px.bar(df_ventana, x="date", y=["moonphase", "sunlight_hours"],
-                      title="Fase lunar y horas de luz solar", barmode="group",
-                      labels={"value": "Valor", "variable": "Variable"})
+    st.subheader("🌙 Fase lunar")
+    fig_luna = px.area(df_ventana, x="date", y="moonphase", title="Fase lunar",
+                       labels={"moonphase": "Fase (0=nueva, 1=llena)"})
     st.plotly_chart(fig_luna, use_container_width=True)
-
-# Histograma de humedad
-with st.expander("📊 Histograma de humedad en el dataset completo"):
-    st.plotly_chart(px.histogram(df_model, x="humidity", nbins=30, title="Distribución de Humedad Relativa"))
 
 # Evaluar riesgo solar
 st.markdown("### ☀️ Calculadora de riesgo solar")

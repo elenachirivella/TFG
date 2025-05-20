@@ -26,7 +26,7 @@ df_model = df_model.dropna(subset=["datetime"])
 # Cabecera visual
 st.set_page_config(page_title="Predicción Meteorológica Valencia", layout="centered")
 st.markdown("## 🌤️ Predicción Meteorológica - Valencia")
-st.markdown("Esta aplicación predice el clima de Valencia para cualquier fecha futura disponible.")
+st.markdown("Esta aplicación predice el clima de Valencia para cualquier fecha con datos disponibles.")
 
 # === Buscar fechas válidas para predicción ===
 fechas_validas = []
@@ -40,18 +40,30 @@ for fecha in fechas_disponibles:
         if (fecha_actual - timedelta(days=l)).date() not in fechas_disponibles:
             faltan_lags = True
             break
-    if not faltan_lags and fecha > hoy:
+    if not faltan_lags:
         fechas_validas.append(fecha)
 
-if not fechas_validas:
-    st.error("No hay fechas válidas con suficientes datos para predecir.")
+# Mostrar rango total de fechas disponibles
+st.info(f"📅 Datos disponibles desde {min(fechas_disponibles)} hasta {max(fechas_disponibles)}.")
+
+# Clasificar fechas
+fechas_pasadas = [f for f in fechas_validas if f <= hoy]
+fechas_futuras = [f for f in fechas_validas if f > hoy]
+
+# Permitir elegir entre fechas futuras o pasadas
+tipo_fecha = st.radio("¿Qué fechas quieres consultar?", ["Futuras", "Pasadas"])
+
+# Mostrar selector correspondiente
+if tipo_fecha == "Futuras":
+    opciones = sorted(fechas_futuras)
+else:
+    opciones = sorted(fechas_pasadas)
+
+if not opciones:
+    st.warning(f"No hay fechas {'futuras' if tipo_fecha == 'Futuras' else 'pasadas'} disponibles con suficientes datos.")
     st.stop()
 
-# Selector
-fecha_prediccion = st.selectbox(
-    "🗓️ Selecciona una fecha futura con datos disponibles:",
-    sorted(fechas_validas)
-)
+fecha_prediccion = st.selectbox("🗓️ Selecciona una fecha con datos disponibles:", opciones)
 
 # Preparar datos de entrada
 fecha_actual = pd.to_datetime(fecha_prediccion)
@@ -100,12 +112,54 @@ with col2:
     st.metric("🌧️ Precipitación", f"{predicciones['Precipitación (mm)']} mm")
     st.metric("🔆 Índice UV", f"{predicciones['Índice UV']}")
 
-# Gráfico de barras
-st.markdown("### 📈 Visualización de variables")
-df_plot = pd.DataFrame(predicciones.items(), columns=["Variable", "Valor"])
-fig = px.bar(df_plot, x="Variable", y="Valor", color="Variable",
-             title=f"Predicciones para el {fecha_prediccion.strftime('%d/%m/%Y')}")
-st.plotly_chart(fig, use_container_width=True)
+# Subconjunto ±3 días
+ventana_inicio = fecha_actual - timedelta(days=3)
+ventana_fin = fecha_actual + timedelta(days=3)
+df_ventana = df_model[(df_model["datetime"] >= ventana_inicio) & (df_model["datetime"] <= ventana_fin)].copy()
+df_ventana["date"] = df_ventana["datetime"].dt.date
+
+# Visualización por variable
+st.markdown("### 📈 Evolución semanal de las variables")
+tabs = st.tabs(["🌡️ Temperatura", "🌧️ Precipitación", "💧 Humedad", "🔆 Índice UV"])
+
+with tabs[0]:
+    fig_temp = px.line(df_ventana, x="date", y="temp", title="Temperatura (°C)")
+    st.plotly_chart(fig_temp, use_container_width=True)
+
+with tabs[1]:
+    fig_precip = px.line(df_ventana, x="date", y="precip", title="Precipitación (mm)")
+    st.plotly_chart(fig_precip, use_container_width=True)
+
+with tabs[2]:
+    fig_hum = px.line(df_ventana, x="date", y="humidity", title="Humedad (%)")
+    st.plotly_chart(fig_hum, use_container_width=True)
+
+with tabs[3]:
+    fig_uv = px.line(df_ventana, x="date", y="uvindex", title="Índice UV")
+    st.plotly_chart(fig_uv, use_container_width=True)
+
+# Dashboard avanzado
+with st.expander("📊 Dashboard avanzado"):
+    st.subheader("🔆 Radiación y Energía Solar")
+    col5, col6 = st.columns(2)
+    with col5:
+        fig_solar_energy = px.line(df_ventana, x="date", y="solarenergy", title="Energía solar (MJ/m²)")
+        st.plotly_chart(fig_solar_energy, use_container_width=True)
+    with col6:
+        fig_solar_rad = px.line(df_ventana, x="date", y="solarradiation", title="Radiación solar (W/m²)")
+        st.plotly_chart(fig_solar_rad, use_container_width=True)
+
+    st.subheader("🌙 Fase lunar y duración del día")
+    col7, col8 = st.columns(2)
+    with col7:
+        fig_moon = px.line(df_ventana, x="date", y="moonphase", title="Fase lunar")
+        st.plotly_chart(fig_moon, use_container_width=True)
+    with col8:
+        df_ventana["sunrise"] = pd.to_datetime(df_ventana["sunrise"], errors='coerce')
+        df_ventana["sunset"] = pd.to_datetime(df_ventana["sunset"], errors='coerce')
+        df_ventana["sunlight_hours"] = (df_ventana["sunset"] - df_ventana["sunrise"]).dt.total_seconds() / 3600
+        fig_light = px.line(df_ventana, x="date", y="sunlight_hours", title="Horas de luz solar")
+        st.plotly_chart(fig_light, use_container_width=True)
 
 # Evaluar riesgo solar
 st.markdown("### ☀️ Calculadora de riesgo solar")

@@ -1,18 +1,15 @@
 import streamlit as st
 import pandas as pd
 import joblib
-from datetime import date, timedelta, datetime
-import numpy as np
+from datetime import datetime, timedelta
 import plotly.express as px
 
-# ⚠️ Trampa temporal para simular que hoy es una fecha del dataset
+# Simulación de "hoy"
 hoy = datetime(2025, 1, 1).date()
 
-# Cargar scaler y columnas usadas en el entrenamiento
+# Cargar recursos
 scaler = joblib.load("scaler.pkl")
 feature_names = joblib.load("feature_names.pkl")
-
-# Cargar modelos
 model_temp = joblib.load("rf_temp_futuro_30.pkl")
 model_precip = joblib.load("rf_precip_futuro_30.pkl")
 model_humidity = joblib.load("rf_humidity_futuro_30.pkl")
@@ -22,151 +19,109 @@ model_uv = joblib.load("rf_uvindex_futuro_30.pkl")
 df_model = pd.read_csv("df_model_final.csv")
 df_model["datetime"] = pd.to_datetime(df_model["datetime"], errors='coerce')
 df_model = df_model.dropna(subset=["datetime"])
+df_model["date"] = df_model["datetime"].dt.date
 
-# Cabecera visual
+# Configuración de la app
 st.set_page_config(page_title="Predicción Meteorológica Valencia", layout="centered")
 st.markdown("## 🌤️ Predicción Meteorológica - Valencia")
 st.markdown("Esta aplicación predice el clima de Valencia para cualquier fecha con datos disponibles.")
 
-# === Buscar fechas válidas para predicción ===
-fechas_validas = []
-lags = [1, 2, 3, 7]
-fechas_disponibles = df_model["datetime"].dt.date.unique()
-
-for fecha in fechas_disponibles:
-    fecha_actual = pd.to_datetime(fecha)
-    faltan_lags = False
-    for l in lags:
-        if (fecha_actual - timedelta(days=l)).date() not in fechas_disponibles:
-            faltan_lags = True
-            break
-    if not faltan_lags:
-        fechas_validas.append(fecha)
-
-# Mostrar rango total de fechas disponibles
+# Rango de fechas
+fechas_disponibles = df_model["date"].unique()
 st.info(f"📅 Datos disponibles desde {min(fechas_disponibles)} hasta {max(fechas_disponibles)}.")
 
-# Clasificar fechas
-fechas_pasadas = [f for f in fechas_validas if f <= hoy]
-fechas_futuras = [f for f in fechas_validas if f > hoy]
+# Obtener fechas válidas con lags disponibles
+lags = [1, 2, 3, 7]
+fechas_validas = []
+for fecha in fechas_disponibles:
+    fecha_dt = pd.to_datetime(fecha)
+    if fecha > hoy and all((fecha_dt - timedelta(days=l)).date() in fechas_disponibles for l in lags):
+        fechas_validas.append(fecha)
 
-# Permitir elegir entre fechas futuras o pasadas
-tipo_fecha = st.radio("¿Qué fechas quieres consultar?", ["Futuras", "Pasadas"])
-
-# Mostrar selector correspondiente
-if tipo_fecha == "Futuras":
-    opciones = sorted(fechas_futuras)
-else:
-    opciones = sorted(fechas_pasadas)
-
-if not opciones:
-    st.warning(f"No hay fechas {'futuras' if tipo_fecha == 'Futuras' else 'pasadas'} disponibles con suficientes datos.")
+if not fechas_validas:
+    st.error("No hay fechas válidas disponibles con suficientes datos.")
     st.stop()
 
-fecha_prediccion = st.selectbox("🗓️ Selecciona una fecha con datos disponibles:", opciones)
+# Selección de fecha
+fecha_pred = st.selectbox("🗓️ Selecciona una fecha con datos disponibles:", sorted(fechas_validas))
+fecha_dt = pd.to_datetime(fecha_pred)
 
-# Preparar datos de entrada
-fecha_actual = pd.to_datetime(fecha_prediccion)
-inputs = {}
+# Generar predicciones para 7 días desde la fecha seleccionada
+predicciones = []
+for i in range(7):
+    fecha_actual = fecha_dt + timedelta(days=i)
+    datos_ok = True
+    entrada = {}
 
-for l in lags:
-    fecha_lag = fecha_actual - timedelta(days=l)
-    fila = df_model[df_model["datetime"] == fecha_lag]
-    if fila.empty:
-        st.error(f"Faltan datos para la fecha: {fecha_lag.date()}. No se puede predecir.")
-        st.stop()
-    inputs[f"temp_lag_{l}"] = fila.iloc[0][f"temp_lag_{l}"]
-    inputs[f"precip_lag_{l}"] = fila.iloc[0][f"precip_lag_{l}"]
-    inputs[f"humidity_lag_{l}"] = fila.iloc[0][f"humidity_lag_{l}"]
+    for l in lags:
+        fecha_lag = fecha_actual - timedelta(days=l)
+        fila = df_model[df_model["date"] == fecha_lag.date()]
+        if fila.empty:
+            datos_ok = False
+            break
+        fila = fila.iloc[0]
+        entrada[f"temp_lag_{l}"] = fila[f"temp_lag_{l}"]
+        entrada[f"precip_lag_{l}"] = fila[f"precip_lag_{l}"]
+        entrada[f"humidity_lag_{l}"] = fila[f"humidity_lag_{l}"]
 
-inputs["day"] = fecha_actual.day
-inputs["month"] = fecha_actual.month
-inputs["year"] = fecha_actual.year
-inputs["weekday"] = fecha_actual.weekday()
-inputs["is_weekend"] = int(inputs["weekday"] in [5, 6])
+    if datos_ok:
+        entrada["day"] = fecha_actual.day
+        entrada["month"] = fecha_actual.month
+        entrada["year"] = fecha_actual.year
+        entrada["weekday"] = fecha_actual.weekday()
+        entrada["is_weekend"] = int(fecha_actual.weekday() in [5, 6])
 
-# Crear DataFrame en el orden esperado
-X_pred = pd.DataFrame([[inputs.get(col, 0) for col in feature_names]], columns=feature_names)
-X_scaled = scaler.transform(X_pred)
+        X = pd.DataFrame([[entrada.get(col, 0) for col in feature_names]], columns=feature_names)
+        X_scaled = scaler.transform(X)
 
-# Predicciones
-pred_temp = model_temp.predict(X_scaled)[0]
-pred_precip = model_precip.predict(X_scaled)[0]
-pred_humidity = model_humidity.predict(X_scaled)[0]
-pred_uv = model_uv.predict(X_scaled)[0]
+        predicciones.append({
+            "date": fecha_actual.date(),
+            "temp": model_temp.predict(X_scaled)[0],
+            "precip": model_precip.predict(X_scaled)[0],
+            "humidity": model_humidity.predict(X_scaled)[0],
+            "uvindex": model_uv.predict(X_scaled)[0]
+        })
 
-predicciones = {
-    'Temperatura (°C)': round(pred_temp, 2),
-    'Precipitación (mm)': round(pred_precip, 2),
-    'Humedad (%)': round(pred_humidity, 2),
-    'Índice UV': round(pred_uv, 2)
-}
+# Convertir predicciones en DataFrame
+df_pred = pd.DataFrame(predicciones)
 
-# Mostrar métricas
+# Mostrar predicción puntual
 st.markdown("### 📊 Predicciones del día")
+fila_hoy = df_pred[df_pred["date"] == fecha_pred].iloc[0]
 col1, col2 = st.columns(2)
 with col1:
-    st.metric("🌡️ Temperatura", f"{predicciones['Temperatura (°C)']} °C")
-    st.metric("💧 Humedad", f"{predicciones['Humedad (%)']} %")
+    st.metric("🌡️ Temperatura", f"{round(fila_hoy['temp'], 2)} °C")
+    st.metric("💧 Humedad", f"{round(fila_hoy['humidity'], 2)} %")
 with col2:
-    st.metric("🌧️ Precipitación", f"{predicciones['Precipitación (mm)']} mm")
-    st.metric("🔆 Índice UV", f"{predicciones['Índice UV']}")
+    st.metric("🌧️ Precipitación", f"{round(fila_hoy['precip'], 2)} mm")
+    st.metric("🔆 Índice UV", f"{round(fila_hoy['uvindex'], 2)}")
 
-# Subconjunto ±3 días
-ventana_inicio = fecha_actual - timedelta(days=3)
-ventana_fin = fecha_actual + timedelta(days=3)
-df_ventana = df_model[(df_model["datetime"] >= ventana_inicio) & (df_model["datetime"] <= ventana_fin)].copy()
-df_ventana["date"] = df_ventana["datetime"].dt.date
-
-# Visualización por variable
+# Gráficos semanales con predicciones
 st.markdown("### 📈 Evolución semanal de las variables")
 tabs = st.tabs(["🌡️ Temperatura", "🌧️ Precipitación", "💧 Humedad", "🔆 Índice UV"])
 
 with tabs[0]:
-    fig_temp = px.line(df_ventana, x="date", y="temp", title="Temperatura (°C)")
-    st.plotly_chart(fig_temp, use_container_width=True)
+    fig = px.area(df_pred, x="date", y="temp", title="Temperatura (°C)")
+    st.plotly_chart(fig, use_container_width=True)
 
 with tabs[1]:
-    fig_precip = px.line(df_ventana, x="date", y="precip", title="Precipitación (mm)")
-    st.plotly_chart(fig_precip, use_container_width=True)
+    fig = px.bar(df_pred, x="date", y="precip", title="Precipitación (mm)")
+    st.plotly_chart(fig, use_container_width=True)
 
 with tabs[2]:
-    fig_hum = px.line(df_ventana, x="date", y="humidity", title="Humedad (%)")
-    st.plotly_chart(fig_hum, use_container_width=True)
+    fig = px.bar(df_pred, x="date", y="humidity", title="Humedad (%)")
+    st.plotly_chart(fig, use_container_width=True)
 
 with tabs[3]:
-    fig_uv = px.line(df_ventana, x="date", y="uvindex", title="Índice UV")
-    st.plotly_chart(fig_uv, use_container_width=True)
+    fig = px.area(df_pred, x="date", y="uvindex", title="Índice UV")
+    st.plotly_chart(fig, use_container_width=True)
 
-# Dashboard avanzado
-with st.expander("📊 Dashboard avanzado"):
-    st.subheader("🔆 Radiación y Energía Solar")
-    col5, col6 = st.columns(2)
-    with col5:
-        fig_solar_energy = px.line(df_ventana, x="date", y="solarenergy", title="Energía solar (MJ/m²)")
-        st.plotly_chart(fig_solar_energy, use_container_width=True)
-    with col6:
-        fig_solar_rad = px.line(df_ventana, x="date", y="solarradiation", title="Radiación solar (W/m²)")
-        st.plotly_chart(fig_solar_rad, use_container_width=True)
-
-    st.subheader("🌙 Fase lunar y duración del día")
-    col7, col8 = st.columns(2)
-    with col7:
-        fig_moon = px.line(df_ventana, x="date", y="moonphase", title="Fase lunar")
-        st.plotly_chart(fig_moon, use_container_width=True)
-    with col8:
-        df_ventana["sunrise"] = pd.to_datetime(df_ventana["sunrise"], errors='coerce')
-        df_ventana["sunset"] = pd.to_datetime(df_ventana["sunset"], errors='coerce')
-        df_ventana["sunlight_hours"] = (df_ventana["sunset"] - df_ventana["sunrise"]).dt.total_seconds() / 3600
-        fig_light = px.line(df_ventana, x="date", y="sunlight_hours", title="Horas de luz solar")
-        st.plotly_chart(fig_light, use_container_width=True)
-
-# Evaluar riesgo solar
+# Evaluación de riesgo UV
 st.markdown("### ☀️ Calculadora de riesgo solar")
-uv = predicciones["Índice UV"]
+uv = fila_hoy["uvindex"]
 if uv < 3:
-    st.success(f"🟢 Riesgo bajo ({uv}). Puedes exponerte al sol con precaución.")
+    st.success(f"🟢 Riesgo bajo ({round(uv, 2)}). Puedes exponerte al sol con precaución.")
 elif 3 <= uv < 6:
-    st.warning(f"🟡 Riesgo moderado ({uv}). Usa protector solar y evita horas punta.")
+    st.warning(f"🟡 Riesgo moderado ({round(uv, 2)}). Usa protector solar y evita horas punta.")
 else:
-    st.error(f"🔴 Riesgo alto ({uv}). Evita exposición prolongada entre 12 y 16h.")
+    st.error(f"🔴 Riesgo alto ({round(uv, 2)}). Evita exposición prolongada entre 12 y 16h.")

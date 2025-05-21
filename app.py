@@ -105,9 +105,27 @@ with tabs[1]:
 with tabs[2]:
     fig_hum = px.line(df_pred, x="date", y="humidity", title="Humedad diaria (%)", labels={"humidity": "Humedad"})
     st.plotly_chart(fig_hum, use_container_width=True)
-
 with tabs[3]:
-    fig_uv = px.scatter(df_pred, x="date", y="uvindex", title="Índice UV diario", labels={"uvindex": "Índice UV"}, size="uvindex", color="uvindex")
+    uv_min = df_pred["uvindex"].min()
+    uv_max = df_pred["uvindex"].max()
+    margen = (uv_max - uv_min) * 0.2 if uv_max != uv_min else 0.1  # margen visual pequeño
+
+    fig_uv = px.scatter(
+        df_pred,
+        x="date",
+        y="uvindex",
+        title="Índice UV diario",
+        labels={"uvindex": "Índice UV"},
+        size="uvindex",
+        color="uvindex",
+        color_continuous_scale="Blues"
+    )
+
+    fig_uv.update_yaxes(
+        autorange="reversed",
+        range=[uv_min - margen, uv_max + margen]
+    )
+
     st.plotly_chart(fig_uv, use_container_width=True)
 
 # Comparador múltiple de fechas con variables más útiles
@@ -152,6 +170,11 @@ df_pred["Riesgo"] = pd.cut(df_pred["uvindex"],
                            include_lowest=True)
 
 colores_uv = {"Bajo": "green", "Moderado": "orange", "Alto": "red"}
+# Ajustar visualmente el rango Y para que los cambios se noten más
+uv_min = df_pred["uvindex"].min()
+uv_max = df_pred["uvindex"].max()
+margen = (uv_max - uv_min) * 0.5 if uv_max != uv_min else 0.2  # mínimo margen si todos iguales
+
 fig_uv_riesgo = px.bar(
     df_pred,
     x="date",
@@ -161,6 +184,8 @@ fig_uv_riesgo = px.bar(
     title="Índice UV diario y nivel de riesgo",
     labels={"uvindex": "Índice UV", "date": "Fecha"}
 )
+
+fig_uv_riesgo.update_yaxes(range=[uv_min - margen, uv_max + margen])
 
 st.plotly_chart(fig_uv_riesgo, use_container_width=True)
 

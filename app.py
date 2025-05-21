@@ -110,7 +110,7 @@ with tabs[3]:
     fig_uv = px.scatter(df_pred, x="date", y="uvindex", title="Índice UV diario", labels={"uvindex": "Índice UV"}, size="uvindex", color="uvindex")
     st.plotly_chart(fig_uv, use_container_width=True)
 
-# Comparador múltiple de fechas
+# Comparador múltiple de fechas con variables más útiles
 st.markdown("### 🔍 Comparar predicciones entre fechas")
 fechas_comparar = st.multiselect("Selecciona varias fechas futuras (máx 5):", sorted(fechas_validas), max_selections=5)
 df_comparacion = pd.DataFrame()
@@ -123,29 +123,44 @@ for f in fechas_comparar:
 if not df_comparacion.empty:
     colx, coly = st.columns(2)
     with colx:
-        fig = px.line(df_comparacion, x="date", y="temp", color="seleccion", title="Comparativa de temperatura")
-        st.plotly_chart(fig, use_container_width=True)
+        fig_precip = px.line(df_comparacion, x="date", y="precip", color="seleccion", title="Comparativa de precipitación", labels={"precip": "Precipitación (mm)"})
+        st.plotly_chart(fig_precip, use_container_width=True)
     with coly:
-        fig_uv_comp = px.line(df_comparacion, x="date", y="uvindex", color="seleccion", title="Comparativa del índice UV")
-        st.plotly_chart(fig_uv_comp, use_container_width=True)
+        fig_hum = px.line(df_comparacion, x="date", y="humidity", color="seleccion", title="Comparativa de humedad", labels={"humidity": "Humedad (%)"})
+        st.plotly_chart(fig_hum, use_container_width=True)
 
-# Dashboard mejorado
-st.markdown("### 📊 Dashboard visual complementario")
-col5, col6 = st.columns(2)
-
-with col5:
-    st.plotly_chart(px.line(df_pred, x="temp", y="humidity", title="Relación Temp vs Humedad", labels={"temp": "Temperatura", "humidity": "Humedad"}), use_container_width=True)
-
-with col6:
-    fig_comb = px.line(df_pred, x="date", y=["temp", "uvindex"], title="Temperatura vs UV", labels={"value": "Valor", "variable": "Variable"})
-    st.plotly_chart(fig_comb, use_container_width=True)
 
 # Calculadora de riesgo solar
 st.markdown("### ☀️ Calculadora de riesgo solar")
 uv = round(pred_hoy["uvindex"], 2)
+
 if uv < 3:
     st.success(f"🟢 Riesgo bajo ({uv}). Puedes exponerte al sol con precaución.")
+    st.caption("Usa gafas de sol en días brillantes. Considera protector solar si vas a estar al aire libre más de 1h.")
 elif 3 <= uv < 6:
     st.warning(f"🟡 Riesgo moderado ({uv}). Usa protector solar y evita horas punta.")
+    st.caption("Recomendado FPS 30+, gafas de sol y sombrero. Evita exponerte entre las 12 y las 16h.")
 else:
     st.error(f"🔴 Riesgo alto ({uv}). Evita exposición prolongada entre 12 y 16h.")
+    st.caption("Obligatorio protector solar FPS 50+, gafas, ropa clara y sombra. Revisa también apps de radiación solar local.")
+# Gráfico UV semanal
+st.markdown("#### 📉 Evolución del índice UV esta semana")
+
+df_pred["Riesgo"] = pd.cut(df_pred["uvindex"],
+                           bins=[0, 3, 6, 11],
+                           labels=["Bajo", "Moderado", "Alto"],
+                           include_lowest=True)
+
+colores_uv = {"Bajo": "green", "Moderado": "orange", "Alto": "red"}
+fig_uv_riesgo = px.bar(
+    df_pred,
+    x="date",
+    y="uvindex",
+    color="Riesgo",
+    color_discrete_map=colores_uv,
+    title="Índice UV diario y nivel de riesgo",
+    labels={"uvindex": "Índice UV", "date": "Fecha"}
+)
+
+st.plotly_chart(fig_uv_riesgo, use_container_width=True)
+

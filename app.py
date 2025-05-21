@@ -185,32 +185,28 @@ fig_uv_riesgo = px.bar(
 fig_uv_riesgo.update_yaxes(range=[uv_min - margen, uv_max + margen])
 
 st.plotly_chart(fig_uv_riesgo, use_container_width=True)
+st.subheader("📊 Vista comparativa: energía, radiación, luna y luz solar")
 
+# 1. Energía + radiación solar (apilado)
+df_radiacion = df_ventana[["date", "solarenergy", "solarradiation"]].copy()
+df_radiacion = df_radiacion.melt(id_vars="date", var_name="Variable", value_name="Valor")
 
-    st.subheader("📊 Vista comparativa: energía, radiación, luna y luz solar")
+fig_rad_apilado = px.area(
+    df_radiacion, x="date", y="Valor", color="Variable",
+    title="🔆 Radiación y Energía solar",
+    labels={"date": "Fecha"},
+    color_discrete_sequence=["#66c2a5", "#fc8d62"]
+)
+st.plotly_chart(fig_rad_apilado, use_container_width=True)
 
-    # 1. Energía + radiación solar (apilado)
-    df_radiacion = df_ventana[["date", "solarenergy", "solarradiation"]].copy()
-    df_radiacion = df_radiacion.melt(id_vars="date", var_name="Variable", value_name="Valor")
+# 2. Fase lunar + horas de luz solar (barras agrupadas)
+df_luna = df_ventana[["date", "moonphase", "sunlight_hours"]].copy()
+df_luna = df_luna.melt(id_vars="date", var_name="Variable", value_name="Valor")
 
-    fig_rad_apilado = px.area(
-        df_radiacion, x="date", y="Valor", color="Variable",
-        title="🔆 Radiación y Energía solar",
-        labels={"date": "Fecha"},
-        color_discrete_sequence=["#66c2a5", "#fc8d62"]
-    )
-    st.plotly_chart(fig_rad_apilado, use_container_width=True)
-
-    # 2. Fase lunar + horas de luz solar (barras agrupadas)
-    df_luna = df_ventana[["date", "moonphase", "sunlight_hours"]].copy()
-    df_luna = df_luna.melt(id_vars="date", var_name="Variable", value_name="Valor")
-
-    fig_luna_bar = px.bar(
-        df_luna, x="date", y="Valor", color="Variable", barmode="group",
-        title="🌙 Fase lunar y Horas de luz solar",
-        labels={"date": "Fecha"},
-        color_discrete_sequence=["#8da0cb", "#ffd92f"]
-    )
-    st.plotly_chart(fig_luna_bar, use_container_width=True)
-
-
+fig_luna_bar = px.bar(
+    df_luna, x="date", y="Valor", color="Variable", barmode="group",
+    title="🌙 Fase lunar y Horas de luz solar",
+    labels={"date": "Fecha"},
+    color_discrete_sequence=["#8da0cb", "#ffd92f"]
+)
+st.plotly_chart(fig_luna_bar, use_container_width=True)

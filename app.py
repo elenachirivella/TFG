@@ -95,14 +95,14 @@ st.markdown("### 📈 Evolución semanal de las variables")
 tabs = st.tabs([ "🌧️ Precipitación", "💧 Humedad", "🔆 Índice UV"])
 
 
-with tabs[1]:
+with tabs[0]:
     fig_precip = px.bar(df_pred, x="date", y="precip", title="Precipitación diaria (mm)", labels={"precip": "Precipitación"})
     st.plotly_chart(fig_precip, use_container_width=True)
 
-with tabs[2]:
+with tabs[1]:
     fig_hum = px.line(df_pred, x="date", y="humidity", title="Humedad diaria (%)", labels={"humidity": "Humedad"})
     st.plotly_chart(fig_hum, use_container_width=True)
-with tabs[3]:
+with tabs[2]:
     uv_min = df_pred["uvindex"].min()
     uv_max = df_pred["uvindex"].max()
     margen = (uv_max - uv_min) * 0.2 if uv_max != uv_min else 0.1  # margen visual pequeño

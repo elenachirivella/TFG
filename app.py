@@ -88,31 +88,57 @@ with col2:
     st.metric("🌧️ Precipitación", f"{round(pred_hoy['precip'], 2)} mm")
     st.metric("🔆 Índice UV", f"{round(pred_hoy['uvindex'], 2)}")
 
+st.caption("*📌 Nota: las predicciones se basan en registros diarios. Cada valor representa una estimación mayoritaria para ese día.*")
+
 # Gráficas semanales
-st.markdown("### 📈 Predicciones para los próximos días")
+st.markdown("### 📈 Evolución semanal de las variables")
 tabs = st.tabs(["🌡️ Temperatura", "🌧️ Precipitación", "💧 Humedad", "🔆 Índice UV"])
+
 with tabs[0]:
-    st.plotly_chart(px.area(df_pred, x="date", y="temp", title="Temperatura (°C)"), use_container_width=True)
+    fig_temp = px.bar(df_pred, x="date", y="temp", title="Temperatura diaria (°C)", labels={"temp": "Temperatura"})
+    st.plotly_chart(fig_temp, use_container_width=True)
+
 with tabs[1]:
-    st.plotly_chart(px.bar(df_pred, x="date", y="precip", title="Precipitación (mm)"), use_container_width=True)
+    fig_precip = px.bar(df_pred, x="date", y="precip", title="Precipitación diaria (mm)", labels={"precip": "Precipitación"})
+    st.plotly_chart(fig_precip, use_container_width=True)
+
 with tabs[2]:
-    st.plotly_chart(px.bar(df_pred, x="date", y="humidity", title="Humedad (%)"), use_container_width=True)
+    fig_hum = px.line(df_pred, x="date", y="humidity", title="Humedad diaria (%)", labels={"humidity": "Humedad"})
+    st.plotly_chart(fig_hum, use_container_width=True)
+
 with tabs[3]:
-    st.plotly_chart(px.area(df_pred, x="date", y="uvindex", title="Índice UV"), use_container_width=True)
+    fig_uv = px.scatter(df_pred, x="date", y="uvindex", title="Índice UV diario", labels={"uvindex": "Índice UV"}, size="uvindex", color="uvindex")
+    st.plotly_chart(fig_uv, use_container_width=True)
 
 # Comparador múltiple de fechas
 st.markdown("### 🔍 Comparar predicciones entre fechas")
-fechas_comparar = st.multiselect("Selecciona varias fechas futuras:", sorted(fechas_validas[:30]))
+fechas_comparar = st.multiselect("Selecciona varias fechas futuras (máx 5):", sorted(fechas_validas), max_selections=5)
 df_comparacion = pd.DataFrame()
 
 for f in fechas_comparar:
     pred_df = generar_predicciones(pd.to_datetime(f))
-    pred_df["seleccion"] = f
+    pred_df["seleccion"] = str(f)
     df_comparacion = pd.concat([df_comparacion, pred_df], ignore_index=True)
 
 if not df_comparacion.empty:
-    fig = px.line(df_comparacion, x="date", y="temp", color="seleccion", title="Comparativa de temperatura entre fechas")
-    st.plotly_chart(fig, use_container_width=True)
+    colx, coly = st.columns(2)
+    with colx:
+        fig = px.line(df_comparacion, x="date", y="temp", color="seleccion", title="Comparativa de temperatura")
+        st.plotly_chart(fig, use_container_width=True)
+    with coly:
+        fig_uv_comp = px.line(df_comparacion, x="date", y="uvindex", color="seleccion", title="Comparativa del índice UV")
+        st.plotly_chart(fig_uv_comp, use_container_width=True)
+
+# Dashboard mejorado
+st.markdown("### 📊 Dashboard visual complementario")
+col5, col6 = st.columns(2)
+
+with col5:
+    st.plotly_chart(px.line(df_pred, x="temp", y="humidity", title="Relación Temp vs Humedad", labels={"temp": "Temperatura", "humidity": "Humedad"}), use_container_width=True)
+
+with col6:
+    fig_comb = px.line(df_pred, x="date", y=["temp", "uvindex"], title="Temperatura vs UV", labels={"value": "Valor", "variable": "Variable"})
+    st.plotly_chart(fig_comb, use_container_width=True)
 
 # Calculadora de riesgo solar
 st.markdown("### ☀️ Calculadora de riesgo solar")

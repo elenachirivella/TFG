@@ -81,7 +81,11 @@ df_pred = pd.DataFrame([predecir_dia(f) for f in fechas_rango if predecir_dia(f)
 df_pred["date"] = pd.to_datetime(df_pred["date"])
 
 # Predicción central (día elegido)
-pred_central = df_pred[df_pred["date"] == fecha_dt.date()].iloc[0]
+filtro = df_pred[df_pred["date"] == fecha_dt.date()]
+if filtro.empty:
+    st.error("❌ No se pudo calcular la predicción para este día. Faltan datos necesarios.")
+    st.stop()
+pred_central = filtro.iloc[0]
 
 # Mostrar métricas del día
 st.markdown("### 📊 Predicciones del día")

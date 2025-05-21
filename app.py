@@ -92,11 +92,8 @@ st.caption("*📌 Nota: las predicciones se basan en registros diarios. Cada val
 
 # Gráficas semanales
 st.markdown("### 📈 Evolución semanal de las variables")
-tabs = st.tabs(["🌡️ Temperatura", "🌧️ Precipitación", "💧 Humedad", "🔆 Índice UV"])
+tabs = st.tabs([ "🌧️ Precipitación", "💧 Humedad", "🔆 Índice UV"])
 
-with tabs[0]:
-    fig_temp = px.bar(df_pred, x="date", y="temp", title="Temperatura diaria (°C)", labels={"temp": "Temperatura"})
-    st.plotly_chart(fig_temp, use_container_width=True)
 
 with tabs[1]:
     fig_precip = px.bar(df_pred, x="date", y="precip", title="Precipitación diaria (mm)", labels={"precip": "Precipitación"})

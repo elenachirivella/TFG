@@ -19,11 +19,28 @@ df_model = pd.read_csv("df_model_final.csv")
 df_model["datetime"] = pd.to_datetime(df_model["datetime"], errors='coerce')
 df_model = df_model.dropna(subset=["datetime"])
 
-# Configuración de página
-st.set_page_config(page_title="Predicción Meteorológica Valencia", layout="centered")
+# Configuración de página (responsive)
+st.set_page_config(page_title="Predicción Meteorológica Valencia", layout="wide")
+st.markdown("""
+<style>
+@media screen and (max-width: 768px) {
+    .block-container {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+    }
+    h1, h2, h3 {
+        font-size: 1.2rem !important;
+    }
+    .stMetric {
+        font-size: 0.9rem !important;
+    }
+}
+</style>
+""", unsafe_allow_html=True)
+
 st.markdown("## 🌤️ Predicción Meteorológica - Valencia")
 fechas_disponibles = df_model["datetime"].dt.date.unique()
-st.info(f"📅 Datos disponibles desde {min(fechas_disponibles)} hasta {max(fechas_disponibles)}.")
+st.info(f"🗓️ Datos disponibles desde {min(fechas_disponibles)} hasta {max(fechas_disponibles)}.")
 
 # Validar fechas futuras y completas
 lags = [1, 2, 3, 7]
@@ -90,42 +107,37 @@ with col2:
 
 st.caption("*📌 Nota: las predicciones se basan en registros diarios. Cada valor representa una estimación mayoritaria para ese día.*")
 
-# Gráficas semanales
-st.markdown("### 📈 Evolución semanal de las variables")
-tabs = st.tabs([ "🌧️ Precipitación", "💧 Humedad", "🔆 Índice UV"])
+# Gráficas semanales con expander
+with st.expander("### 📈 Evolución semanal de las variables"):
+    tabs = st.tabs([ "🌧️ Precipitación", "💧 Humedad", "🔆 Índice UV"])
 
+    with tabs[0]:
+        fig_precip = px.bar(df_pred, x="date", y="precip", title="Precipitación diaria (mm)", labels={"precip": "Precipitación"})
+        st.plotly_chart(fig_precip, use_container_width=True)
 
-with tabs[0]:
-    fig_precip = px.bar(df_pred, x="date", y="precip", title="Precipitación diaria (mm)", labels={"precip": "Precipitación"})
-    st.plotly_chart(fig_precip, use_container_width=True)
+    with tabs[1]:
+        fig_hum = px.line(df_pred, x="date", y="humidity", title="Humedad diaria (%)", labels={"humidity": "Humedad"})
+        st.plotly_chart(fig_hum, use_container_width=True)
 
-with tabs[1]:
-    fig_hum = px.line(df_pred, x="date", y="humidity", title="Humedad diaria (%)", labels={"humidity": "Humedad"})
-    st.plotly_chart(fig_hum, use_container_width=True)
-with tabs[2]:
-    uv_min = df_pred["uvindex"].min()
-    uv_max = df_pred["uvindex"].max()
-    margen = (uv_max - uv_min) * 0.2 if uv_max != uv_min else 0.1  # margen visual pequeño
+    with tabs[2]:
+        uv_min = df_pred["uvindex"].min()
+        uv_max = df_pred["uvindex"].max()
+        margen = (uv_max - uv_min) * 0.2 if uv_max != uv_min else 0.1
 
-    fig_uv = px.scatter(
-        df_pred,
-        x="date",
-        y="uvindex",
-        title="Índice UV diario",
-        labels={"uvindex": "Índice UV"},
-        size="uvindex",
-        color="uvindex",
-        color_continuous_scale="Blues"
-    )
+        fig_uv = px.scatter(
+            df_pred,
+            x="date",
+            y="uvindex",
+            title="Índice UV diario",
+            labels={"uvindex": "Índice UV"},
+            size="uvindex",
+            color="uvindex",
+            color_continuous_scale="Blues"
+        )
+        fig_uv.update_yaxes(autorange="reversed", range=[uv_min - margen, uv_max + margen])
+        st.plotly_chart(fig_uv, use_container_width=True)
 
-    fig_uv.update_yaxes(
-        autorange="reversed",
-        range=[uv_min - margen, uv_max + margen]
-    )
-
-    st.plotly_chart(fig_uv, use_container_width=True)
-
-# Comparador múltiple de fechas con variables más útiles
+# Comparador múltiple de fechas
 st.markdown("### 🔍 Comparar predicciones entre fechas")
 fechas_comparar = st.multiselect("Selecciona varias fechas futuras (máx 5):", sorted(fechas_validas), max_selections=5)
 df_comparacion = pd.DataFrame()
@@ -144,7 +156,6 @@ if not df_comparacion.empty:
         fig_hum = px.line(df_comparacion, x="date", y="humidity", color="seleccion", title="Comparativa de humedad", labels={"humidity": "Humedad (%)"})
         st.plotly_chart(fig_hum, use_container_width=True)
 
-
 # Calculadora de riesgo solar
 st.markdown("### ☀️ Calculadora de riesgo solar")
 uv = round(pred_hoy["uvindex"], 2)
@@ -158,19 +169,14 @@ elif 3 <= uv < 6:
 else:
     st.error(f"🔴 Riesgo alto ({uv}). Evita exposición prolongada entre 12 y 16h.")
     st.caption("Obligatorio protector solar FPS 50+, gafas, ropa clara y sombra. Revisa también apps de radiación solar local.")
+
 # Gráfico UV semanal
 st.markdown("#### 📉 Evolución del índice UV esta semana")
-
-df_pred["Riesgo"] = pd.cut(df_pred["uvindex"],
-                           bins=[0, 3, 6, 11],
-                           labels=["Bajo", "Moderado", "Alto"],
-                           include_lowest=True)
-
+df_pred["Riesgo"] = pd.cut(df_pred["uvindex"], bins=[0, 3, 6, 11], labels=["Bajo", "Moderado", "Alto"], include_lowest=True)
 colores_uv = {"Bajo": "green", "Moderado": "orange", "Alto": "red"}
-# Ajustar visualmente el rango Y para que los cambios se noten más
 uv_min = df_pred["uvindex"].min()
 uv_max = df_pred["uvindex"].max()
-margen = (uv_max - uv_min) * 0.5 if uv_max != uv_min else 0.2  # mínimo margen si todos iguales
+margen = (uv_max - uv_min) * 0.5 if uv_max != uv_min else 0.2
 
 fig_uv_riesgo = px.bar(
     df_pred,
@@ -181,7 +187,6 @@ fig_uv_riesgo = px.bar(
     title="Índice UV diario y nivel de riesgo",
     labels={"uvindex": "Índice UV", "date": "Fecha"}
 )
-
 fig_uv_riesgo.update_yaxes(range=[uv_min - margen, uv_max + margen])
-
 st.plotly_chart(fig_uv_riesgo, use_container_width=True)
+

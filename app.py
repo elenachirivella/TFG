@@ -29,10 +29,10 @@ st.markdown("""
         padding-right: 1rem !important;
     }
     h1, h2, h3 {
-        font-size: 1.2rem !important;
+        font-size: 1.4rem !important;
     }
     .stMetric {
-        font-size: 0.9rem !important;
+        font-size: 1.4rem !important;
     }
 }
 </style>
